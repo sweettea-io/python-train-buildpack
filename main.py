@@ -71,10 +71,16 @@ def perform(team=None, prediction=None, prediction_uid=None):
   train_method()
 
   # Upload trained model to S3
+  model_path = config.get('model')
+
+  if '.' in model_path:
+    model_file_type = model_path.split('.').pop()
+    upload_path = prediction + '.' + model_file_type
+  else:
+    upload_path = prediction
+
   print('Uploading model to S3...')
-  uploader.upload(filepath=config.get('model'),
-                  upload_path=prediction,
-                  bucket='s3://{}'.format(team))
+  uploader.upload(filepath=model_path, upload_path=upload_path, bucket=team)
 
   # Tell Core we're done building
   print('Reporting that training is done...')
