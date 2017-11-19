@@ -7,4 +7,4 @@ COPY . /app
 RUN if [ -e /app/requirements.txt ]; then pip install -U pip && pip install -r /app/requirements.txt; fi
 RUN pip install requests
 RUN pip install boto3
-RUN pip install yaml
+RUN pip install pyyaml
