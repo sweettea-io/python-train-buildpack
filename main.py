@@ -8,7 +8,7 @@ def get_envs():
   env = os.environ
 
   # Required ENV vars
-  required = ['TEAM', 'PREDICTION', 'PREDICTION_UID']
+  required = ['TEAM', 'TEAM_UID', 'PREDICTION', 'PREDICTION_UID']
   missing = [k for k in required if k not in env]
 
   if missing:
@@ -55,7 +55,7 @@ def get_src_mod(src, name):
   return importlib.import_module('{}.{}'.format(src, name))
 
 
-def perform(team=None, prediction=None, prediction_uid=None):
+def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
   # Get refs to the modules inside our src directory
   uploader = get_src_mod(prediction_uid, 'uploader')
   definitions = get_src_mod(prediction_uid, 'definitions')
@@ -79,8 +79,10 @@ def perform(team=None, prediction=None, prediction_uid=None):
   else:
     upload_path = prediction
 
+  bucket = '{}-{}'.format(team, team_uid)
+
   print('Uploading model to S3...')
-  uploader.upload(filepath=model_path, upload_path=upload_path, bucket=team)
+  uploader.upload(filepath=model_path, upload_path=upload_path, bucket=bucket)
 
   # Tell Core we're done building
   print('Reporting that training is done...')
