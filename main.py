@@ -4,7 +4,6 @@ import yaml
 
 
 def get_envs():
-  print('Validating envs...')
   env = os.environ
 
   # Required ENV vars
@@ -62,11 +61,9 @@ def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
   messenger = get_src_mod(prediction_uid, 'messenger')
 
   # Read the provided config file
-  print('Reading config info...')
   config = read_config(getattr(definitions, 'config_path'))
 
   # Get exported train method and call it
-  print('Training model...')
   train_method = get_train_method(config)
   train_method()
 
@@ -81,20 +78,15 @@ def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
 
   bucket = '{}-{}'.format(team, team_uid)
 
-  print('Uploading model to S3...')
-  filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), model_path))
-  print filepath
-  uploader.upload(filepath=filepath, upload_path=upload_path, bucket=bucket)
+  abs_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), model_path))
+  uploader.upload(filepath=abs_model_path, upload_path=upload_path, bucket=bucket)
 
   # Tell Core we're done building
-  print('Reporting that training is done...')
   messenger.send_message({
     'done': True,
     'from': getattr(definitions, 'TRAIN_CLUSTER'),
     'prediction_uid': prediction_uid
   })
-
-  print('Done.')
 
 
 if __name__ == '__main__':
