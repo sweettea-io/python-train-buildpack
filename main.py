@@ -82,7 +82,9 @@ def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
   bucket = '{}-{}'.format(team, team_uid)
 
   print('Uploading model to S3...')
-  uploader.upload(filepath=model_path, upload_path=upload_path, bucket=bucket)
+  filepath = os.path.abspath(os.path.join(os.path.dirname(__file__), model_path))
+  print filepath
+  uploader.upload(filepath=filepath, upload_path=upload_path, bucket=bucket)
 
   # Tell Core we're done building
   print('Reporting that training is done...')
