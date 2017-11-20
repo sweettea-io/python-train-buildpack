@@ -83,9 +83,8 @@ def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
 
   # Tell Core we're done building
   messenger.send_message({
-    'done': True,
-    'from': getattr(definitions, 'TRAIN_CLUSTER'),
-    'prediction_uid': prediction_uid
+    'prediction_uid': prediction_uid,
+    'status': 'training_done'
   })
 
 
