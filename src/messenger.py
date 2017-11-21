@@ -7,7 +7,7 @@ messenger = AbstractApi(base_url=os.environ.get('CORE_URL'),
 
 def send_message(payload):
   try:
-    messenger.post('/status/report', payload=payload)
+    messenger.put('/prediction/status', payload=payload)
   except AbstractApiException as e:
     print(e.message)
   except BaseException as e:
