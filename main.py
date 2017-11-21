@@ -39,26 +39,26 @@ def read_config(config_path):
   return config
 
 
-def get_train_method(config):
-  split_path_info = config.get('train').split('.')
-  train_func_str = split_path_info.pop()
-  train_mod_str = '.'.join(split_path_info)
+def get_exported_method(config, key=None):
+  split_path_info = config.get(key).split('.')
+  function_str = split_path_info.pop()
+  module_str = '.'.join(split_path_info)
 
-  if not train_mod_str:
-    print('No module specified for training. Only the function was specified.')
+  if not module_str:
+    print('No module specified for config method({}={}).'.format(key, config.get(key)))
     exit(1)
 
-  train_mod = importlib.import_module(train_mod_str)
+  module = importlib.import_module(module_str)
 
-  if not train_mod:
-    print('No module to import at destination: {}'.format(train_mod_str))
+  if not module:
+    print('No module to import at destination: {}'.format(module_str))
     exit(1)
 
-  if not hasattr(train_mod, train_func_str):
-    print('No function named {} exists on module {}'.format(train_func_str, train_mod_str))
+  if not hasattr(module_str, function_str):
+    print('No function named {} exists on module {}'.format(module_str, function_str))
     exit(1)
 
-  return getattr(train_mod, train_func_str)
+  return getattr(module_str, function_str)
 
 
 def get_src_mod(src, name):
@@ -79,8 +79,13 @@ def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
   config = read_config(config_path)
 
   # Get ref to exported train method and execute it
-  train_method = get_train_method(config)
+  train_method = get_exported_method(config, key='train')
   train_method()
+
+  # If test method specified, call that as well
+  if config.get('test'):
+    test_method = get_exported_method(config, key='test')
+    test_method()
 
   # Get trained model path and proper file ext before uploading it to S3
   model_path = config.get('model')
