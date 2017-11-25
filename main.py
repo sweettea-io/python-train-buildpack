@@ -1,6 +1,7 @@
 import os
 import importlib
 import yaml
+from sqlalchemy import create_engine
 
 
 def get_envs():
@@ -65,6 +66,29 @@ def get_src_mod(src, name):
   return importlib.import_module('{}.{}'.format(src, name))
 
 
+def create_dataset(config):
+  create_dataset_method = get_exported_method(config, key='create_dataset')
+  db_url = os.environ.get('DATASET_DB_URL')
+
+  try:
+    # Connect to database holding dataset records
+    engine = create_engine(db_url)
+    conn = engine.connect()
+  except BaseException as e:
+    print('Error connecting to DATASET_DB_URL {} when attempting to create dataset: {}'.format(db_url, e))
+    exit(1)
+
+  try:
+    # Get the json 'data' column for each record
+    data = [dict(r).get('data') for r in conn.execute('SELECT * FROM records')]
+  except BaseException as e:
+    print('Error querying all records for DB: {}, with error: {}'.format(db_url, e))
+    exit(1)
+
+  # Call the provided method and pass in the data
+  create_dataset_method(data)
+
+
 def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
   # We need to use importlib.import_module to access our src/ files since src/ will
   # be renamed to <prediction_uid>/ to avoid conflicts with user's project files
@@ -77,6 +101,9 @@ def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
   # Read the config file in the project
   config_path = getattr(definitions, 'config_path')
   config = read_config(config_path)
+
+  # Fetch all data from DB and pass it into the specified create_dataset method
+  create_dataset(config)
 
   # Get ref to exported train method and execute it
   train_method = get_exported_method(config, key='train')
