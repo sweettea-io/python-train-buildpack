@@ -56,11 +56,11 @@ def get_exported_method(config, key=None):
     print('No module to import at destination: {}'.format(module_str))
     exit(1)
 
-  if not hasattr(module_str, function_str):
-    print('No function named {} exists on module {}'.format(module_str, function_str))
+  if not hasattr(module, function_str):
+    print('No function named {} exists on module {}'.format(function_str, module_str))
     exit(1)
 
-  return getattr(module_str, function_str)
+  return getattr(module, function_str)
 
 
 def get_src_mod(src, name):
