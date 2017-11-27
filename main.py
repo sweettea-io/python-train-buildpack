@@ -10,6 +10,7 @@ def get_envs():
     'AWS_ACCESS_KEY_ID': False,
     'AWS_SECRET_ACCESS_KEY': False,
     'AWS_REGION_NAME': False,
+    'S3_BUCKET_NAME': True,
     'DATASET_DB_URL': False,
     'CORE_URL': False,
     'CORE_API_TOKEN': False,
@@ -89,33 +90,40 @@ def create_dataset(config):
   create_dataset_method(data)
 
 
-def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
+def perform(team=None, team_uid=None, prediction=None, prediction_uid=None, s3_bucket_name=None):
   # We need to use importlib.import_module to access our src/ files since src/ will
   # be renamed to <prediction_uid>/ to avoid conflicts with user's project files
 
   # Get refs to the modules inside our src directory
+  print('Importing modules...')
   uploader = get_src_mod(prediction_uid, 'uploader')
   definitions = get_src_mod(prediction_uid, 'definitions')
   messenger = get_src_mod(prediction_uid, 'messenger')
 
   # Read the config file in the project
+  print('Validating config...')
   config_path = getattr(definitions, 'config_path')
   config = read_config(config_path)
 
   # Fetch all data from DB and pass it into the specified create_dataset method
-  create_dataset(config)
+  print('Pulling data from dataset DB...')
+  # create_dataset(config)
 
   # Get ref to exported train method and execute it
+  print('Executing train method...')
   train_method = get_exported_method(config, key='train')
   train_method()
 
   # If test method specified, call that as well
   if config.get('test'):
+    print('Executing test method...')
     test_method = get_exported_method(config, key='test')
     test_method()
 
   # Get trained model path and proper file ext before uploading it to S3
   model_path = config.get('model')
+
+  print('Finding trained model at path {}'.format(model_path))
 
   if '.' in model_path:
     model_file_type = model_path.split('.').pop()
@@ -123,13 +131,18 @@ def perform(team=None, team_uid=None, prediction=None, prediction_uid=None):
   else:
     upload_path = prediction
 
-  bucket = '{}-{}'.format(team, team_uid)
-
   # We need the absolute path to model file
   abs_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), model_path))
 
+  if not os.path.exists(abs_model_path):
+    print('No trained model at path {}. Not uploading model.'.format(model_path))
+    exit(1)
+
   # Upload trained model to S3
-  uploader.upload(filepath=abs_model_path, upload_path=upload_path, bucket=bucket)
+  print('Uploading trained model...')
+  uploader.upload(filepath=abs_model_path,
+                  upload_path=upload_path,
+                  bucket=s3_bucket_name)
 
   # Tell Core we're done training
   messenger.send_message({
