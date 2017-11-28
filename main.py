@@ -12,6 +12,7 @@ def get_envs():
     'AWS_REGION_NAME': False,
     'S3_BUCKET_NAME': True,
     'DATASET_DB_URL': False,
+    'DATASET_TABLE_NAME': False,
     'CORE_URL': False,
     'CORE_API_TOKEN': False,
     'TEAM': True,
@@ -70,6 +71,7 @@ def get_src_mod(src, name):
 def create_dataset(config):
   create_dataset_method = get_exported_method(config, key='create_dataset')
   db_url = os.environ.get('DATASET_DB_URL')
+  table_name = os.environ.get('DATASET_TABLE_NAME')
 
   try:
     # Connect to database holding dataset records
@@ -80,8 +82,8 @@ def create_dataset(config):
     exit(1)
 
   try:
-    # Get the json 'data' column for each record
-    data = [dict(r).get('data') for r in conn.execute('SELECT * FROM records')]
+    # TODO: Prevent SQL Injection here
+    data = [r for r in conn.execute('SELECT data FROM {}'.format(table_name))]
   except BaseException as e:
     print('Error querying all records for DB: {}, with error: {}'.format(db_url, e))
     exit(1)
