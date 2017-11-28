@@ -44,13 +44,11 @@ class AbstractApi(object):
     else:
       args['data'] = payload or {}
 
-    print('Sending request: {}, {} to {}'.format(payload, args, self.base_url + route))
-
     # Make the request
-    # response = request(self.base_url + route, **args)
+    response = request(self.base_url + route, **args)
 
     # Return the JSON response
-    # return self.handle_response(response, err_message)
+    return self.handle_response(response, err_message)
 
   @staticmethod
   def handle_response(response, err_message):

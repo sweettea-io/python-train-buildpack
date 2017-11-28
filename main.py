@@ -146,6 +146,8 @@ def perform(team=None, team_uid=None, prediction=None, prediction_uid=None, s3_b
                   upload_path=upload_path,
                   bucket=s3_bucket_name)
 
+  print('DONE TRAINING.')
+
   # Tell Core we're done training
   messenger.send_message({
     'prediction_uid': prediction_uid,
