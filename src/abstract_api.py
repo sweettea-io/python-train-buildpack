@@ -42,7 +42,7 @@ class AbstractApi(object):
     if method in ['get', 'delete']:
       args['params'] = payload or {}
     else:
-      args['data'] = payload or {}
+      args['json'] = payload or {}
 
     # Make the request
     response = request(self.base_url + route, **args)
