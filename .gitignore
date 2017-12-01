@@ -3,4 +3,4 @@ venv/
 *.pyc
 *.env
 .idea/
-.config.yml
+.tensorci.yml
