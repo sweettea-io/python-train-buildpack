@@ -43,9 +43,7 @@ def read_config(config_path):
 
 
 def get_exported_method(config, key=None):
-  split_path_info = config.get(key).split('.')
-  function_str = split_path_info.pop()
-  module_str = '.'.join(split_path_info)
+  module_str, function_str = config.get(key).split(':')
 
   if not module_str:
     print('No module specified for config method({}={}).'.format(key, config.get(key)))
