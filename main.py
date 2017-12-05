@@ -18,7 +18,8 @@ def get_envs():
     'TEAM': True,
     'TEAM_UID': True,
     'PREDICTION': True,
-    'PREDICTION_UID': True
+    'PREDICTION_UID': True,
+    'DEPLOYMENT_UID': True
   }
 
   missing = [k for k in required_envs if k not in os.environ]
@@ -90,7 +91,8 @@ def create_dataset(config):
   create_dataset_method(data)
 
 
-def perform(team=None, team_uid=None, prediction=None, prediction_uid=None, s3_bucket_name=None):
+def perform(team=None, team_uid=None, prediction=None,
+            prediction_uid=None, s3_bucket_name=None, deployment_uid=None):
   # We need to use importlib.import_module to access our src/ files since src/ will
   # be renamed to <prediction_uid>/ to avoid conflicts with user's project files
 
@@ -148,7 +150,7 @@ def perform(team=None, team_uid=None, prediction=None, prediction_uid=None, s3_b
 
   # Tell Core we're done training
   messenger.send_message({
-    'prediction_uid': prediction_uid,
+    'deployment_uid': deployment_uid,
     'status': 'training_done'
   })
 
