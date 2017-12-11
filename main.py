@@ -18,7 +18,8 @@ def get_envs():
     'PREDICTION': True,
     'PREDICTION_UID': True,
     'DEPLOYMENT_UID': True,
-    'REDIS_URL': False
+    'REDIS_URL': False,
+    'WITH_API_DEPLOY': True
   }
 
   missing = [k for k in required_envs if k not in os.environ]
@@ -90,10 +91,7 @@ def create_dataset(config, logger=None):
   create_dataset_method(data)
 
 
-def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deployment_uid=None):
-  # We need to use importlib.import_module to access our src/ files since src/ will
-  # be renamed to <prediction_uid>/ to avoid conflicts with user's project files
-
+def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deployment_uid=None, with_api_deploy=0):
   # Get refs to the modules inside our src directory
   logger = get_src_mod(prediction_uid, 'logger')
   logger.log('Importing modules...')
@@ -147,9 +145,9 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   logger.log('Done training.')
 
   # Tell Core we're done training
-  messenger.send_message({
+  messenger.report_done_training({
     'deployment_uid': deployment_uid,
-    'status': 'training_done'
+    'with_api_deploy': bool(with_api_deploy)
   })
 
 

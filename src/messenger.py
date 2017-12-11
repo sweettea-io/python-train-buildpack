@@ -5,9 +5,9 @@ messenger = AbstractApi(base_url=os.environ.get('CORE_URL'),
                         base_headers={'Core-Api-Token': os.environ.get('CORE_API_TOKEN')})
 
 
-def send_message(payload):
+def report_done_training(payload):
   try:
-    messenger.put('/deployment', payload=payload)
+    messenger.put('/deployment/trained', payload=payload)
   except AbstractApiException as e:
     print(e.message)
   except BaseException as e:
