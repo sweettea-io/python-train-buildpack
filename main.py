@@ -91,7 +91,7 @@ def create_dataset(config, logger=None):
   create_dataset_method(data)
 
 
-def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deployment_uid=None, with_api_deploy=0):
+def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deployment_uid=None, with_api_deploy=None):
   # Get refs to the modules inside our src directory
   logger = get_src_mod(prediction_uid, 'logger')
   logger.log('Importing modules...')
@@ -147,7 +147,7 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   # Tell Core we're done training
   messenger.report_done_training({
     'deployment_uid': deployment_uid,
-    'with_api_deploy': bool(with_api_deploy)
+    'with_api_deploy': with_api_deploy == 'true'
   })
 
 
