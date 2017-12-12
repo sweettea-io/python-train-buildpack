@@ -32,32 +32,32 @@ def get_envs():
   return {k.lower(): os.environ.get(k) for k in required_envs if required_envs[k]}
 
 
-def read_config(config_path, logger=None):
+def read_config(config_path):
   with open(config_path) as f:
     config = yaml.load(f)
   
   if type(config) != dict or 'train' not in config or 'model' not in config:
-    logger.log('Not training. Invalid config file: {}'.format(config))
+    print('Not training. Invalid config file: {}'.format(config))
     exit(1)
   
   return config
 
 
-def get_exported_method(config, key=None, logger=None):
+def get_exported_method(config, key=None):
   module_str, function_str = config.get(key).split(':')
 
   if not module_str:
-    logger.log('No module specified for config method({}={}).'.format(key, config.get(key)))
+    print('No module specified for config method({}={}).'.format(key, config.get(key)))
     exit(1)
 
   module = importlib.import_module(module_str)
 
   if not module:
-    logger.log('No module to import at destination: {}'.format(module_str))
+    print('No module to import at destination: {}'.format(module_str))
     exit(1)
 
   if not hasattr(module, function_str):
-    logger.log('No function named {} exists on module {}'.format(function_str, module_str))
+    print('No function named {} exists on module {}'.format(function_str, module_str))
     exit(1)
 
   return getattr(module, function_str)
@@ -67,7 +67,7 @@ def get_src_mod(src, name):
   return importlib.import_module('{}.{}'.format(src, name))
 
 
-def create_dataset(config, logger=None):
+def create_dataset(config):
   create_dataset_method = get_exported_method(config, key='create_dataset')
   db_url = os.environ.get('DATASET_DB_URL')
   table_name = os.environ.get('DATASET_TABLE_NAME')
@@ -77,14 +77,14 @@ def create_dataset(config, logger=None):
     engine = create_engine(db_url)
     conn = engine.connect()
   except BaseException as e:
-    logger.log('Error connecting to DATASET_DB_URL {} when attempting to create dataset: {}'.format(db_url, e))
+    print('Error connecting to DATASET_DB_URL {} when attempting to create dataset: {}'.format(db_url, e))
     exit(1)
 
   try:
     # TODO: Prevent SQL Injection here
     data = [r for r in conn.execute('SELECT data FROM {}'.format(table_name))]
   except BaseException as e:
-    logger.log('Error querying all records for DB: {}, with error: {}'.format(db_url, e))
+    print('Error querying all records for DB: {}, with error: {}'.format(db_url, e))
     exit(1)
 
   # Call the provided method and pass in the data
@@ -93,35 +93,34 @@ def create_dataset(config, logger=None):
 
 def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deployment_uid=None, with_api_deploy=None):
   # Get refs to the modules inside our src directory
-  logger = get_src_mod(prediction_uid, 'logger')
-  logger.log('Importing modules...')
+  print('Importing modules...')
   uploader = get_src_mod(prediction_uid, 'uploader')
   definitions = get_src_mod(prediction_uid, 'definitions')
   messenger = get_src_mod(prediction_uid, 'messenger')
 
   # Read the config file in the project
-  logger.log('Validating {}...'.format(definitions.config_file))
-  config = read_config(definitions.config_path, logger=logger)
+  print('Validating {}...'.format(definitions.config_file))
+  config = read_config(definitions.config_path)
 
   # Fetch all data from DB and pass it into the specified create_dataset method
-  logger.log('Pulling data from dataset DB...')
-  # create_dataset(config, logger=logger)
+  print('Pulling data from dataset DB...')
+  # create_dataset(config)
 
   # Get ref to exported train method and execute it
-  logger.log('Executing train method...')
-  train_method = get_exported_method(config, key='train', logger=logger)
+  print('Executing train method...')
+  train_method = get_exported_method(config, key='train')
   train_method()
 
   # If test method specified, call that as well
   if config.get('test'):
-    logger.log('Executing test method...')
-    test_method = get_exported_method(config, key='test', logger=logger)
+    print('Executing test method...')
+    test_method = get_exported_method(config, key='test')
     test_method()
 
   # Get trained model path and proper file ext before uploading it to S3
   model_path = config.get('model')
 
-  logger.log('Finding trained model at path {}'.format(model_path))
+  print('Finding trained model at path {}'.format(model_path))
 
   if '.' in model_path:
     model_file_type = model_path.split('.').pop()
@@ -133,16 +132,16 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   abs_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), model_path))
 
   if not os.path.exists(abs_model_path):
-    logger.log('No trained model at path {}. Not uploading model.'.format(model_path))
+    print('No trained model at path {}. Not uploading model.'.format(model_path))
     exit(1)
 
   # Upload trained model to S3
-  logger.log('Uploading trained model...')
+  print('Uploading trained model...')
   uploader.upload(filepath=abs_model_path,
                   upload_path=upload_path,
                   bucket=s3_bucket_name)
 
-  logger.log('Done training.')
+  print('Done training.')
 
   # Tell Core we're done training
   messenger.report_done_training({
