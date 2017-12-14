@@ -1,6 +1,7 @@
 import os
 import importlib
 import yaml
+import sys
 from sqlalchemy import create_engine
 
 
@@ -91,12 +92,30 @@ def create_dataset(config):
   create_dataset_method(data)
 
 
+def call_exported_method(method, log_capture=None, log_queue=None):
+  # Store reference to old stdout and stderr
+  old_stdout = sys.stdout
+  old_stderr = sys.stderr
+
+  # Set up streaming of stdout and stderr to a redis queue
+  sys.stdout = log_capture(sys.stdout, name=log_queue)
+  sys.stderr = log_capture(sys.stderr, name=log_queue)
+
+  # Execute the exported method (train, test, etc.)
+  method()
+
+  # Revert changes to stdout and stderr
+  sys.stdout = old_stdout
+  sys.stderr = old_stderr
+
+
 def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deployment_uid=None, with_api_deploy=None):
   # Get refs to the modules inside our src directory
   print('Importing modules...')
   uploader = get_src_mod(prediction_uid, 'uploader')
   definitions = get_src_mod(prediction_uid, 'definitions')
   messenger = get_src_mod(prediction_uid, 'messenger')
+  pyredis = get_src_mod(prediction_uid, 'pyredis')
 
   # Read the config file in the project
   print('Validating {}...'.format(definitions.config_file))
@@ -106,16 +125,19 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   print('Pulling data from dataset DB...')
   # create_dataset(config)
 
+  log_capture = pyredis.RedisStream
+  log_queue = 'train-{}'.format(deployment_uid)
+
   # Get ref to exported train method and execute it
   print('Executing train method...')
   train_method = get_exported_method(config, key='train')
-  train_method()
+  call_exported_method(train_method, log_capture=log_capture, log_queue=log_queue)
 
   # If test method specified, call that as well
   if config.get('test'):
     print('Executing test method...')
     test_method = get_exported_method(config, key='test')
-    test_method()
+    call_exported_method(test_method, log_capture=log_capture, log_queue=log_queue)
 
   # Get trained model path and proper file ext before uploading it to S3
   model_path = config.get('model')
