@@ -115,7 +115,7 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   uploader = get_src_mod(prediction_uid, 'uploader')
   definitions = get_src_mod(prediction_uid, 'definitions')
   messenger = get_src_mod(prediction_uid, 'messenger')
-  pyredis = get_src_mod(prediction_uid, 'pyredis')
+  redis = get_src_mod(prediction_uid, 'pyredis')
 
   # Read the config file in the project
   print('Validating {}...'.format(definitions.config_file))
@@ -125,7 +125,8 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   print('Pulling data from dataset DB...')
   # create_dataset(config)
 
-  log_capture = pyredis.RedisStream
+  # Define our log redirects
+  log_capture = redis.RedisStream
   log_queue = 'train-{}'.format(deployment_uid)
 
   # Get ref to exported train method and execute it
