@@ -18,7 +18,7 @@ class RedisStream(object):
     self.stream.write(data)
 
     if data != '\n':
-      redis.rpush(self.name, data)
+      redis.xadd(self.name, text=data)
 
     self.stream.flush()
 

@@ -1,6 +1,6 @@
 FROM tensorci/train-augment-parent
 
-RUN pip install redis==2.10.6
+RUN pip install git+git://github.com/nicois/redis-py.git@df6395284674e1acacc68630f86d37dd4f03b5f6
 
 # Copy the current directory contents into the container at /app
 COPY . /app
