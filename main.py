@@ -68,28 +68,25 @@ def get_src_mod(src, name):
   return importlib.import_module('{}.{}'.format(src, name))
 
 
-def create_dataset(config):
-  create_dataset_method = get_exported_method(config, key='create_dataset')
+def prepro_data(prepro_method, table_name):
   db_url = os.environ.get('DATASET_DB_URL')
-  table_name = os.environ.get('DATASET_TABLE_NAME')
 
   try:
     # Connect to database holding dataset records
     engine = create_engine(db_url)
-    conn = engine.connect()
   except BaseException as e:
-    print('Error connecting to DATASET_DB_URL {} when attempting to create dataset: {}'.format(db_url, e))
+    print('Error connecting to DATASET_DB_URL {} -- {}'.format(db_url, e))
     exit(1)
 
   try:
-    # TODO: Prevent SQL Injection here
-    data = [r for r in conn.execute('SELECT data FROM {}'.format(table_name))]
+    # Get all JSON data records
+    data = [r for r in engine.execute('SELECT data FROM {};'.format(table_name))]
   except BaseException as e:
-    print('Error querying all records for DB: {}, with error: {}'.format(db_url, e))
+    print('Error querying dataset data (db_url={}) -- {}'.format(db_url, e))
     exit(1)
 
-  # Call the provided method and pass in the data
-  create_dataset_method(data)
+  print('Preprocessing dataset...')
+  prepro_method(data)
 
 
 def call_exported_method(method, log_capture=None, log_queue=None):
@@ -121,9 +118,13 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   print('Validating {}...'.format(definitions.config_file))
   config = read_config(definitions.config_path)
 
-  # Fetch all data from DB and pass it into the specified create_dataset method
-  print('Pulling data from dataset DB...')
-  # create_dataset(config)
+  table_name = os.environ.get('DATASET_TABLE_NAME')
+  prepro_data_method = get_exported_method(config, key='prepro_data')
+
+  # Only preprocess dataset if a table name was provided.
+  if table_name and prepro_data_method:
+    # Retrieve dataset from DB and pass it into the specified prepro_data method
+    prepro_data(prepro_data_method, table_name)
 
   # Define our log redirects
   log_capture = redis.RedisStream
