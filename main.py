@@ -80,6 +80,7 @@ def prepro_data(prepro_method, table_name):
 
   try:
     # Get all JSON data records
+    print('Extracting dataset...')
     data = [r for r in engine.execute('SELECT data FROM {};'.format(table_name))]
   except BaseException as e:
     print('Error querying dataset data (db_url={}) -- {}'.format(db_url, e))
