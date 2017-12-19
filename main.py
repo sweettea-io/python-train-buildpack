@@ -118,7 +118,10 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   print('Validating {}...'.format(definitions.config_file))
   config = read_config(definitions.config_path)
 
+  # dataset-db table name to pull dataset from
   table_name = os.environ.get('DATASET_TABLE_NAME')
+
+  # Exported method that preprocesses dataset before training
   prepro_data_method = get_exported_method(config, key='prepro_data')
 
   # Only preprocess dataset if a table name was provided.
