@@ -68,7 +68,7 @@ def get_src_mod(src, name):
   return importlib.import_module('{}.{}'.format(src, name))
 
 
-def prepro_data(prepro_method, table_name):
+def prepro_data(prepro_method, table_name, log_capture, log_queue):
   db_url = os.environ.get('DATASET_DB_URL')
 
   try:
@@ -81,16 +81,15 @@ def prepro_data(prepro_method, table_name):
   try:
     # Get all JSON data records
     print('Extracting dataset...')
-    data = [r for r in engine.execute('SELECT data FROM {};'.format(table_name))]
+    data = [r[0] for r in engine.execute('SELECT data FROM {};'.format(table_name))]
   except BaseException as e:
     print('Error querying dataset data (db_url={}) -- {}'.format(db_url, e))
     exit(1)
 
-  print('Preprocessing dataset...')
-  prepro_method(data)
+  call_exported_method(log_capture, log_queue, prepro_method, data)
 
 
-def call_exported_method(method, log_capture=None, log_queue=None):
+def call_exported_method(log_capture, log_queue, method, *args, **kwargs):
   # Store reference to old stdout and stderr
   old_stdout = sys.stdout
   old_stderr = sys.stderr
@@ -100,7 +99,7 @@ def call_exported_method(method, log_capture=None, log_queue=None):
   sys.stderr = log_capture(sys.stderr, name=log_queue)
 
   # Execute the exported method (train, test, etc.)
-  method()
+  method(*args, **kwargs)
 
   # Revert changes to stdout and stderr
   sys.stdout = old_stdout
@@ -119,6 +118,10 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   print('Validating {}...'.format(definitions.config_file))
   config = read_config(definitions.config_path)
 
+  # Define our log redirects
+  log_capture = redis.RedisStream
+  log_queue = 'train-{}'.format(deployment_uid)
+
   # dataset-db table name to pull dataset from
   table_name = os.environ.get('DATASET_TABLE_NAME')
 
@@ -128,22 +131,18 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   # Only preprocess dataset if a table name was provided.
   if table_name and prepro_data_method:
     # Retrieve dataset from DB and pass it into the specified prepro_data method
-    prepro_data(prepro_data_method, table_name)
-
-  # Define our log redirects
-  log_capture = redis.RedisStream
-  log_queue = 'train-{}'.format(deployment_uid)
+    prepro_data(prepro_data_method, table_name, log_capture, log_queue)
 
   # Get ref to exported train method and execute it
   print('Executing train method...')
   train_method = get_exported_method(config, key='train')
-  call_exported_method(train_method, log_capture=log_capture, log_queue=log_queue)
+  call_exported_method(log_capture, log_queue, train_method)
 
   # If test method specified, call that as well
   if config.get('test'):
     print('Executing test method...')
     test_method = get_exported_method(config, key='test')
-    call_exported_method(test_method, log_capture=log_capture, log_queue=log_queue)
+    call_exported_method(log_capture, log_queue, test_method)
 
   # Get trained model path and proper file ext before uploading it to S3
   model_path = config.get('model')
