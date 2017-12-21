@@ -86,17 +86,17 @@ def prepro_data(prepro_method, table_name, log_capture, log_queue):
     print('Error querying dataset data (db_url={}) -- {}'.format(db_url, e))
     exit(1)
 
-  call_exported_method(log_capture, log_queue, prepro_method, data)
+  call_exported_method(log_capture, log_queue, 'prepro_data', prepro_method, data)
 
 
-def call_exported_method(log_capture, log_queue, method, *args, **kwargs):
+def call_exported_method(log_capture, log_queue, log_method_name, method, *args, **kwargs):
   # Store reference to old stdout and stderr
   old_stdout = sys.stdout
   old_stderr = sys.stderr
 
   # Set up streaming of stdout and stderr to a redis queue
-  sys.stdout = log_capture(sys.stdout, name=log_queue)
-  sys.stderr = log_capture(sys.stderr, name=log_queue)
+  sys.stdout = log_capture(sys.stdout, name=log_queue, method=log_method_name)
+  sys.stderr = log_capture(sys.stderr, name=log_queue, method=log_method_name)
 
   # Execute the exported method (train, test, etc.)
   method(*args, **kwargs)
@@ -136,13 +136,13 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   # Get ref to exported train method and execute it
   print('Executing train method...')
   train_method = get_exported_method(config, key='train')
-  call_exported_method(log_capture, log_queue, train_method)
+  call_exported_method(log_capture, log_queue, 'train', train_method)
 
   # If test method specified, call that as well
   if config.get('test'):
     print('Executing test method...')
     test_method = get_exported_method(config, key='test')
-    call_exported_method(log_capture, log_queue, test_method)
+    call_exported_method(log_capture, log_queue, 'test', test_method)
 
   # Get trained model path and proper file ext before uploading it to S3
   model_path = config.get('model')
