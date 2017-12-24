@@ -20,7 +20,8 @@ def get_envs():
     'PREDICTION_UID': True,
     'DEPLOYMENT_UID': True,
     'REDIS_URL': False,
-    'WITH_API_DEPLOY': True
+    'WITH_API_DEPLOY': True,
+    'UPDATE_PREDICTION_MODEL': True
   }
 
   missing = [k for k in required_envs if k not in os.environ]
@@ -106,7 +107,8 @@ def call_exported_method(log_capture, log_queue, log_method_name, method, *args,
   sys.stderr = old_stderr
 
 
-def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deployment_uid=None, with_api_deploy=None):
+def perform(prediction=None, prediction_uid=None, s3_bucket_name=None,
+            deployment_uid=None, with_api_deploy=None, update_prediction_model=None):
   # Get refs to the modules inside our src directory
   print('Importing modules...')
   uploader = get_src_mod(prediction_uid, 'uploader')
@@ -173,7 +175,8 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None, deploymen
   # Tell Core we're done training
   messenger.report_done_training({
     'deployment_uid': deployment_uid,
-    'with_api_deploy': with_api_deploy == 'true'
+    'with_api_deploy': with_api_deploy == 'true',
+    'update_prediction_model': update_prediction_model == 'true'
   })
 
 
