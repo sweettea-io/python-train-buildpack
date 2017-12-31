@@ -16,8 +16,8 @@ def get_envs():
     'DATASET_TABLE_NAME': False,
     'CORE_URL': False,
     'CORE_API_TOKEN': False,
-    'PREDICTION': True,
-    'PREDICTION_UID': True,
+    'REPO_SLUG': True,
+    'REPO_UID': True,
     'DEPLOYMENT_UID': True,
     'REDIS_URL': False,
     'WITH_API_DEPLOY': True,
@@ -107,14 +107,14 @@ def call_exported_method(log_capture, log_queue, log_method_name, method, *args,
   sys.stderr = old_stderr
 
 
-def perform(prediction=None, prediction_uid=None, s3_bucket_name=None,
+def perform(repo_slug=None, repo_uid=None, s3_bucket_name=None,
             deployment_uid=None, with_api_deploy=None, update_prediction_model=None):
   # Get refs to the modules inside our src directory
   print('Importing modules...')
-  uploader = get_src_mod(prediction_uid, 'uploader')
-  definitions = get_src_mod(prediction_uid, 'definitions')
-  messenger = get_src_mod(prediction_uid, 'messenger')
-  redis = get_src_mod(prediction_uid, 'pyredis')
+  uploader = get_src_mod(repo_uid, 'uploader')
+  definitions = get_src_mod(repo_uid, 'definitions')
+  messenger = get_src_mod(repo_uid, 'messenger')
+  redis = get_src_mod(repo_uid, 'pyredis')
 
   # Read the config file in the project
   print('Validating {}...'.format(definitions.config_file))
@@ -153,9 +153,9 @@ def perform(prediction=None, prediction_uid=None, s3_bucket_name=None,
 
   if '.' in model_path:
     model_file_type = model_path.split('.').pop()
-    upload_path = prediction + '.' + model_file_type
+    upload_path = repo_slug + '.' + model_file_type
   else:
-    upload_path = prediction
+    upload_path = repo_slug
 
   # We need the absolute path to model file
   abs_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), model_path))
