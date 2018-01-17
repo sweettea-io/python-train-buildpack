@@ -20,7 +20,6 @@ def get_envs():
     'REPO_UID': True,
     'DEPLOYMENT_UID': True,
     'REDIS_URL': False,
-    'WITH_API_DEPLOY': True,
     'UPDATE_PREDICTION_MODEL': True
   }
 
@@ -108,7 +107,7 @@ def call_exported_method(log_capture, log_queue, log_method_name, method, *args,
 
 
 def perform(repo_slug=None, repo_uid=None, s3_bucket_name=None,
-            deployment_uid=None, with_api_deploy=None, update_prediction_model=None):
+            deployment_uid=None, update_prediction_model=None):
   # Get refs to the modules inside our src directory
   print('Importing modules...')
   uploader = get_src_mod(repo_uid, 'uploader')
@@ -175,7 +174,6 @@ def perform(repo_slug=None, repo_uid=None, s3_bucket_name=None,
   # Tell Core we're done training
   messenger.report_done_training({
     'deployment_uid': deployment_uid,
-    'with_api_deploy': with_api_deploy == 'true',
     'update_prediction_model': update_prediction_model == 'true'
   })
 
