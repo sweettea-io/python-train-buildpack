@@ -121,7 +121,7 @@ def perform(repo_slug=None, repo_uid=None, s3_bucket_name=None,
 
   # Define our log redirects
   log_capture = redis.RedisStream
-  log_queue = 'train-{}'.format(deployment_uid)
+  log_queue = 'train:{}'.format(deployment_uid)
 
   # dataset-db table name to pull dataset from
   table_name = os.environ.get('DATASET_TABLE_NAME')
