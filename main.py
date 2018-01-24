@@ -154,6 +154,7 @@ def perform(repo_slug=None, repo_uid=None, s3_bucket_name=None,
     model_file_type = model_path.split('.').pop()
     upload_path = repo_slug + '.' + model_file_type
   else:
+    model_file_type = ''
     upload_path = repo_slug
 
   # We need the absolute path to model file
@@ -174,7 +175,8 @@ def perform(repo_slug=None, repo_uid=None, s3_bucket_name=None,
   # Tell Core we're done training
   messenger.report_done_training({
     'deployment_uid': deployment_uid,
-    'update_prediction_model': update_prediction_model == 'true'
+    'update_prediction_model': update_prediction_model == 'true',
+    'model_ext': model_file_type
   })
 
 
