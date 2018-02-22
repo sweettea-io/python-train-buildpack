@@ -1,6 +1,7 @@
 import os
 import importlib
 import yaml
+import shutil
 import sys
 from sqlalchemy import create_engine
 
@@ -106,6 +107,40 @@ def call_exported_method(log_capture, log_queue, log_method_name, method, *args,
   sys.stderr = old_stderr
 
 
+def get_model_file_info(model_path, repo_slug):
+  print('Finding trained model at path {}'.format(model_path))
+
+  # Get the absolute path to the model
+  abs_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), model_path))
+
+  if not os.path.exists(abs_model_path):
+    print('No trained model at path {}. Not uploading model.'.format(model_path))
+    exit(1)
+
+  # Check to see if the model is a folder and needs to be zipped
+  if os.path.isdir(abs_model_path):
+    model_ext = 'zip'
+    path_to_upload = abs_model_path + '.' + model_ext
+
+    # zip model dir
+    shutil.make_archive(abs_model_path, model_ext, abs_model_path)
+  else:
+    path_to_upload = abs_model_path
+    model_filename_w_ext = abs_model_path.split('/').pop()
+
+    if '.' in model_filename_w_ext:
+      model_ext = model_filename_w_ext.split('.').pop()
+    else:
+      model_ext = ''
+
+  upload_path = repo_slug
+
+  if model_ext:
+    upload_path += ('.' + model_ext)
+
+  return path_to_upload, model_ext, upload_path
+
+
 def perform(repo_slug=None, repo_uid=None, s3_bucket_name=None,
             deployment_uid=None, update_prediction_model=None):
   # Get refs to the modules inside our src directory
@@ -146,27 +181,11 @@ def perform(repo_slug=None, repo_uid=None, s3_bucket_name=None,
     call_exported_method(log_capture, log_queue, 'test', test_method)
 
   # Get trained model path and proper file ext before uploading it to S3
-  model_path = config.get('model')
-
-  print('Finding trained model at path {}'.format(model_path))
-
-  if '.' in model_path:
-    model_file_type = model_path.split('.').pop()
-    upload_path = repo_slug + '.' + model_file_type
-  else:
-    model_file_type = ''
-    upload_path = repo_slug
-
-  # We need the absolute path to model file
-  abs_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), model_path))
-
-  if not os.path.exists(abs_model_path):
-    print('No trained model at path {}. Not uploading model.'.format(model_path))
-    exit(1)
+  local_model_path, model_ext, upload_path = get_model_file_info(config.get('model'), repo_slug)
 
   # Upload trained model to S3
   print('Uploading trained model...')
-  uploader.upload(filepath=abs_model_path,
+  uploader.upload(filepath=local_model_path,
                   upload_path=upload_path,
                   bucket=s3_bucket_name)
 
@@ -176,7 +195,7 @@ def perform(repo_slug=None, repo_uid=None, s3_bucket_name=None,
   messenger.report_done_training({
     'deployment_uid': deployment_uid,
     'update_prediction_model': update_prediction_model == 'true',
-    'model_ext': model_file_type
+    'model_ext': model_ext
   })
 
 
