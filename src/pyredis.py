@@ -1,8 +1,8 @@
 import os
-import time
 import json
+import time
+from .definitions import deploy_update_queue
 from redis import StrictRedis
-from definitions import deploy_update_queue
 
 redis_url = os.environ.get('REDIS_URL')
 

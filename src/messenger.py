@@ -1,5 +1,5 @@
 import os
-from abstract_api import AbstractApi, AbstractApiException
+from .abstract_api import AbstractApi, AbstractApiException
 
 messenger = AbstractApi(base_url=os.environ.get('CORE_URL'),
                         base_headers={'Core-Api-Token': os.environ.get('CORE_API_TOKEN')})

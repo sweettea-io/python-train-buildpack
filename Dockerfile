@@ -1,4 +1,4 @@
-FROM python:2.7
+FROM python:3.6
 
 RUN pip install requests==2.18.4 boto3==1.4.7 pyyaml==3.12 SQLAlchemy==1.1.15 psycopg2==2.7.3
 RUN pip install git+git://github.com/nicois/redis-py.git@master
