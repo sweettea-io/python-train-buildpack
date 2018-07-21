@@ -1,4 +1,4 @@
-FROM python:3.6
+FROM python:3.6-alpine
 
 # Build arg representing the build target uid.
 ARG TARGET_UID
