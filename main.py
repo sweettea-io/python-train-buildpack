@@ -1,162 +1,160 @@
 import os
 import importlib
-import shutil
 import sys
-import yaml
-from sqlalchemy import create_engine
 
 
-def read_config(config_path):
-  with open(config_path) as f:
-    config = yaml.load(f)
-  
-  if type(config) != dict or 'train' not in config or 'model' not in config:
-    print('Not training. Invalid config file: {}'.format(config))
-    exit(1)
-  
-  return config
-
-
-def get_exported_method(config, key=None):
-  module_str, function_str = config.get(key).split(':')
-
-  if not module_str:
-    print('No module specified for config method({}={}).'.format(key, config.get(key)))
+def ensure_internal_modules_accessible():
+  if not os.environ.get('PROJECT_UID'):
+    print('PROJECT_UID must be provided as an environment variable in order to run this buildpack.')
     exit(1)
 
-  module = importlib.import_module(module_str)
 
-  if not module:
-    print('No module to import at destination: {}'.format(module_str))
+def get_internal_modules():
+  try:
+    config = get_src_mod('config')
+    definitions = get_src_mod('definitions')
+    envs = get_src_mod('envs')
+    model_uploader = get_src_mod('model_uploader')
+    pyredis = get_src_mod('pyredis')
+
+    return config, definitions, envs, model_uploader, pyredis
+  except BaseException as e:
+    print('Internal module reference failed: {}'.format(e))
     exit(1)
-
-  if not hasattr(module, function_str):
-    print('No function named {} exists on module {}'.format(function_str, module_str))
-    exit(1)
-
-  return getattr(module, function_str)
 
 
 def get_src_mod(name):
-  return importlib.import_module('{}.{}'.format(os.environ.get('REPO_UID'), name))
+  return importlib.import_module('{}.{}'.format(os.environ.get('PROJECT_UID'), name))
 
 
-def prepro_data(prepro_method, envs, log_capture, log_queue):
+def get_validated_config(config_module, path):
   try:
-    # Connect to database holding dataset records
-    engine = create_engine(envs.DATASET_DB_URL)
+    cfg = config_module.Config(path)
+
+    if not cfg.validate_train_config():
+      raise BaseException('Invalid SweetTea configuration file.')
+
+    return cfg
   except BaseException as e:
-    print('Error connecting to DATASET_DB_URL: {}, with error {}.'.format(envs.DATASET_DB_URL, e))
+    print(e)
     exit(1)
 
-  try:
-    # Get all JSON data records
-    print('Extracting dataset...')
-    data = [r[0] for r in engine.execute('SELECT data FROM {};'.format(envs.DATASET_TABLE_NAME))]
-  except BaseException as e:
-    print('Error querying dataset data (db_url={}): {}.'.format(envs.DATASET_DB_URL, e))
+
+def get_config_func(func_path):
+  # Split function path into ['<module_path>', '<function_name>']
+  module_path, func_name = func_path.rsplit(':', 1)
+
+  if not module_path:
+    print('No module included in config function path: {}.'.format(func_path))
     exit(1)
 
-  call_exported_method(log_capture, log_queue, 'prepro_data', prepro_method, data)
+  # Import module by path.
+  module = importlib.import_module(module_path)
+
+  # Ensure module exists.
+  if not module:
+    print('No module to import at destination: {}'.format(module_path))
+    exit(1)
+
+  # Ensure function exists on module.
+  if not hasattr(module, func_name):
+    print('No function named {} exists on module {}'.format(func_name, module_path))
+    exit(1)
+
+  # Return reference to module function.
+  return getattr(module, func_name)
 
 
-def call_exported_method(log_capture, log_queue, log_method_name, method, *args, **kwargs):
-  # Store reference to old stdout and stderr
+def call_config_func(action=None, func_path=None, redis=None, stream_capture=None, log_stream_key=None):
+  # Get reference to function from path.
+  func = get_config_func(func_path)
+
+  # Store reference to old stdout and stderr.
   old_stdout = sys.stdout
   old_stderr = sys.stderr
 
-  # Set up streaming of stdout and stderr to a redis queue
-  sys.stdout = log_capture(sys.stdout, name=log_queue, method=log_method_name)
-  sys.stderr = log_capture(sys.stderr, name=log_queue, method=log_method_name)
+  # Set up streaming of stdout and stderr to a redis stream.
+  sys.stdout = stream_capture(sys.stdout, redis, stream_key=log_stream_key, action=action, level='info')
+  sys.stderr = stream_capture(sys.stderr, redis, stream_key=log_stream_key, action=action, level='error')
 
-  # Execute the exported method (train, test, etc.)
-  method(*args, **kwargs)
+  # Execute the config function.
+  result = func()
 
   # Revert changes to stdout and stderr
   sys.stdout = old_stdout
   sys.stderr = old_stderr
 
-
-def get_model_file_info(model_path, repo_slug):
-  print('Finding trained model at path {}'.format(model_path))
-
-  # Get the absolute path to the model
-  abs_model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), model_path))
-
-  if not os.path.exists(abs_model_path):
-    print('No trained model at path {}. Not uploading model.'.format(model_path))
-    exit(1)
-
-  # Check to see if the model is a folder and needs to be zipped
-  if os.path.isdir(abs_model_path):
-    model_ext = 'zip'
-    path_to_upload = abs_model_path + '.' + model_ext
-
-    # zip model dir
-    shutil.make_archive(abs_model_path, model_ext, abs_model_path)
-  else:
-    path_to_upload = abs_model_path
-    model_filename_w_ext = abs_model_path.split('/').pop()
-
-    if '.' in model_filename_w_ext:
-      model_ext = model_filename_w_ext.split('.').pop()
-    else:
-      model_ext = ''
-
-  upload_path = repo_slug
-
-  if model_ext:
-    upload_path += ('.' + model_ext)
-
-  return path_to_upload, model_ext, upload_path
+  return result
 
 
 def perform():
-  # Get exported internal src modules
-  envs = get_src_mod('envs').envs
-  uploader = get_src_mod('uploader')
-  definitions = get_src_mod('definitions')
-  messenger = get_src_mod('messenger')
-  redis = get_src_mod('pyredis')
+  """
+    Perform the following ML actions:
 
-  # Read the config file in the project
-  config = read_config(definitions.config_path)
+    1. Fetch dataset (if specified)
+    2. Preprocess dataset (if specified)
+    3. Train model
+    4. Test model
+    5. Evaluate model against custom criteria (if specified)
+    6. Upload model to cloud storage
+  """
+  # Get reference to internal src modules.
+  config, definitions, envs, model_uploader, pyredis = get_internal_modules()
 
-  # Define our log redirects
-  log_capture = redis.RedisStream
-  log_queue = 'train:{}'.format(envs.DEPLOYMENT_UID)
+  # Create EnvVars instance from environment variables.
+  env_vars = envs.EnvVars()
 
-  # Exported method that preprocesses dataset before training
-  prepro_data_method = get_exported_method(config, key='prepro_data')
+  # Create Redis instance for log streaming.
+  redis = pyredis.new_redis(addresss=env_vars.REDIS_ADDRESS,
+                            password=env_vars.REDIS_PASSWORD)
 
-  # Only preprocess dataset if a table name was provided.
-  if envs.DATASET_TABLE_NAME and prepro_data_method:
-    prepro_data(prepro_data_method, envs, log_capture, log_queue)
+  # Create Config instance from SweetTea config file.
+  cfg = get_validated_config(config, definitions.config_path)
 
-  # Get ref to exported train method and execute it
-  train_method = get_exported_method(config, key='train')
-  call_exported_method(log_capture, log_queue, 'train', train_method)
+  # Create dict of generic kwargs for each config function call.
+  func_agnostic_kwargs = {
+    'redis': redis,
+    'stream_capture': pyredis.RedisStream,
+    'log_stream_key': env_vars.LOG_STREAM_KEY
+  }
 
-  # If test method specified, call that as well
-  if config.get('test'):
-    test_method = get_exported_method(config, key='test')
-    call_exported_method(log_capture, log_queue, 'test', test_method)
+  # Get function paths from config.
+  fetch_dataset = cfg.dataset_fetch_func()
+  prepro_dataset = cfg.dataset_prepro_func()
+  train_model = cfg.train_func()
+  test_model = cfg.test_func()
+  eval_model = cfg.eval_func()
 
-  # Get trained model path and proper file ext before uploading it to S3
-  local_model_path, model_ext, upload_path = get_model_file_info(config.get('model'), envs.REPO_SLUG)
+  # Fetch dataset (if configured to do so).
+  if fetch_dataset:
+    call_config_func(action='fetch dataset', func_path=fetch_dataset, **func_agnostic_kwargs)
 
-  # Upload trained model to S3
-  uploader.upload(filepath=local_model_path,
-                  upload_path=upload_path,
-                  bucket=envs.S3_BUCKET_NAME)
+  # Preprocess dataset (if configured to do so).
+  if prepro_dataset:
+    call_config_func(action='preprocess dataset', func_path=prepro_dataset, **func_agnostic_kwargs)
 
-  # Tell Core we're done training
-  messenger.report_done_training({
-    'deployment_uid': envs.DEPLOYMENT_UID,
-    'update_prediction_model': envs.UPDATE_PREDICTION_MODEL == 'true',
-    'model_ext': model_ext
-  })
+  # Train model.
+  call_config_func(action='train', func_path=train_model, **func_agnostic_kwargs)
+
+  # Test model (if configured to do so).
+  if test_model:
+    call_config_func(action='test', func_path=test_model, **func_agnostic_kwargs)
+
+  # Evaluate model against custom criteria (if configured to do so).
+  if eval_model:
+    passed_eval = call_config_func(action='eval', func_path=eval_model, **func_agnostic_kwargs)
+
+    # Exit if evaluation failed and that's the criteria used to determine if model should be uploaded.
+    if not passed_eval and cfg.eval_determines_model_upload():
+      print('Model did not pass evalution. Not uploading model.')
+      exit(1)
+
+  # Upload model to cloud storage.
+  model_uploader.upload(cloud_storage_url=env_vars.MODEL_STORAGE_URL,
+                        rel_local_model_path=cfg.model_path(),
+                        cloud_model_path=env_vars.MODEL_STORAGE_FILE_PATH)
 
 
 if __name__ == '__main__':
+  ensure_internal_modules_accessible()
   perform()

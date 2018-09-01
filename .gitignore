@@ -1,6 +1,5 @@
 venv/
-*.pem
 *.pyc
 *.env
 .idea/
-.tensorci.yml
+.sweettea.yml
