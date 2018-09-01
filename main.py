@@ -49,20 +49,20 @@ def get_config_func(func_path):
     exit(1)
 
   # Import module by path.
-  module = importlib.import_module(module_path)
+  mod = importlib.import_module(module_path)
 
   # Ensure module exists.
-  if not module:
+  if not mod:
     print('No module to import at destination: {}'.format(module_path))
     exit(1)
 
   # Ensure function exists on module.
-  if not hasattr(module, func_name):
+  if not hasattr(mod, func_name):
     print('No function named {} exists on module {}'.format(func_name, module_path))
     exit(1)
 
   # Return reference to module function.
-  return getattr(module, func_name)
+  return getattr(mod, func_name)
 
 
 def call_config_func(action=None, func_path=None, redis=None, stream_capture=None, log_stream_key=None):
@@ -89,7 +89,7 @@ def call_config_func(action=None, func_path=None, redis=None, stream_capture=Non
 
 def perform():
   """
-    Perform the following ML actions:
+  Perform the following ML actions:
 
     1. Fetch dataset (if specified)
     2. Preprocess dataset (if specified)
