@@ -1,14 +1,6 @@
 from redis import StrictRedis
 
 
-def new_redis(address='', password=None):
-  # Split address into host/post
-  host, port = address.rsplit(':', 1)
-
-  # Assign new StrictRedis instance to global redis var.
-  return StrictRedis(host=address, port=int(port), password=password)
-
-
 class RedisStream(object):
 
   def __init__(self, sys_stream, redis_instance, stream_key=None, **kwargs):
@@ -34,3 +26,11 @@ class RedisStream(object):
 
   def __getattr__(self, attr):
     return getattr(self.stream, attr)
+
+
+def new_redis(address='', password=None):
+  # Split address into host/post
+  host, port = address.rsplit(':', 1)
+
+  # Assign new StrictRedis instance to global redis var.
+  return StrictRedis(host=address, port=int(port), password=password)
