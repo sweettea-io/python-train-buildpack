@@ -2,7 +2,7 @@ import boto3
 import os
 import shutil
 from .definitions import base_dir
-from urlparse import urlparse
+from urllib.parse import urlparse
 
 
 def upload(cloud_storage_url=None, rel_local_model_path=None, cloud_model_path=None):
