@@ -18,14 +18,14 @@ class RedisStream(object):
       # XADD log entry to Redis stream.
       self.redis_instance.xadd(self.stream_key, msg=data, **self.kwargs)
 
-    self.stream.flush()
+    self.sys_stream.flush()
 
   def writelines(self, datas):
-    self.stream.writelines(datas)
-    self.stream.flush()
+    self.sys_stream.writelines(datas)
+    self.sys_stream.flush()
 
   def __getattr__(self, attr):
-    return getattr(self.stream, attr)
+    return getattr(self.sys_stream, attr)
 
 
 def new_redis(address='', password=None):
