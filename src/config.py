@@ -13,7 +13,7 @@ class Config(object):
       self.train_func,
       self.model_path,
       self.model_upload_criteria,
-      self._validate_eval()
+      self._validate_eval
     ]
 
     for validation in validate_truthy:
