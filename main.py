@@ -105,7 +105,7 @@ def perform():
   env_vars = envs.EnvVars()
 
   # Create Redis instance for log streaming.
-  redis = pyredis.new_redis(addresss=env_vars.REDIS_ADDRESS,
+  redis = pyredis.new_redis(address=env_vars.REDIS_ADDRESS,
                             password=env_vars.REDIS_PASSWORD)
 
   # Create Config instance from SweetTea config file.
