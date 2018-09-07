@@ -33,4 +33,4 @@ def new_redis(address='', password=None):
   host, port = address.rsplit(':', 1)
 
   # Assign new StrictRedis instance to global redis var.
-  return StrictRedis(host=address, port=int(port), password=password)
+  return StrictRedis(host=host, port=int(port), password=password)
