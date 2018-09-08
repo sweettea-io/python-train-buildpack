@@ -101,8 +101,8 @@ def perform():
                                     action='setup')
 
   # Create custom log streams connected to Redis.
-  sys.stdout = logger.Logger(sys.stdout, on_write=redis.stream_info)
-  sys.stderr = logger.Logger(sys.stderr, on_write=redis.stream_error)
+  sys.stdout = logger.Logger(sys.stdout, on_write=redis.stream)
+  sys.stderr = logger.Logger(sys.stderr, on_write=redis.stream)
 
   # Create Config instance from SweetTea config file.
   cfg = get_validated_config(config, definitions.config_path)
@@ -117,7 +117,7 @@ def perform():
   # Exit if evaluation failed and that's the criteria used to determine if model should be uploaded.
   if not eval_result and cfg.eval_determines_model_upload():
     print('Model did not pass evalution. Not uploading model.')
-    exit(1)
+    return
 
   # Upload model to cloud storage.
   model_uploader.upload(cloud_storage_url=env_vars.MODEL_STORAGE_URL,

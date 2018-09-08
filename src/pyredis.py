@@ -20,20 +20,5 @@ class RedisStreamClient(object):
   def set_stream_attr(self, key, val):
     self.stream_attrs[key] = val
 
-  def stream(self, data, **attrs):
-    self.redis.xadd(self.stream_key, msg=data, **attrs)
-
-  def stream_info(self, data):
-    self.stream_with_level(data, 'info')
-
-  def stream_error(self, data):
-    self.stream_with_level(data, 'error')
-
-  def stream_with_level(self, data, level):
-    if data == '\n':
-      return
-
-    attrs = self.stream_attrs
-    attrs['level'] = level
-
-    self.stream(data, **attrs)
+  def stream(self, data):
+    self.redis.xadd(self.stream_key, msg=data, **self.stream_attrs)
