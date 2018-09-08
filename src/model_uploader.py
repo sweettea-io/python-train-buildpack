@@ -5,9 +5,9 @@ from .definitions import base_dir
 from urllib.parse import urlparse
 
 
-def upload(cloud_storage_url=None, rel_local_model_path=None, cloud_model_path=None):
+def upload(cloud_storage_url=None, rel_local_model_path=None, cloud_model_path=None, **kwargs):
   # Configure S3 Bucket for upload.
-  s3 = boto3.resource('s3')
+  s3 = boto3.resource('s3', **kwargs)
   bucket_name = urlparse(cloud_storage_url).netloc
   bucket = s3.Bucket(bucket_name)
 

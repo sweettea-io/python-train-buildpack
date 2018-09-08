@@ -1,36 +1,39 @@
 from redis import StrictRedis
 
 
-class RedisStream(object):
+class RedisStreamClient(object):
 
-  def __init__(self, sys_stream, redis_instance, stream_key=None, **kwargs):
-    self.sys_stream = sys_stream
-    self.redis_instance = redis_instance
+  def __init__(self, address='', password=None, stream_key='', **stream_attrs):
+    self.address = address
+    self.password = password
     self.stream_key = stream_key
-    self.kwargs = kwargs
+    self.stream_attrs = stream_attrs or {}
 
-  def write(self, data):
-    # Write data to system stream that's being wrapped.
-    self.sys_stream.write(data)
+    # Split address into host/post
+    self.host, self.port = address.rsplit(':', 1)
 
-    # Ignore newlines only
-    if data != '\n':
-      # XADD log entry to Redis stream.
-      self.redis_instance.xadd(self.stream_key, msg=data, **self.kwargs)
+    # Create redis instance.
+    self.redis = StrictRedis(host=self.host,
+                             port=int(self.port),
+                             password=password)
 
-    self.sys_stream.flush()
+  def set_stream_attr(self, key, val):
+    self.stream_attrs[key] = val
 
-  def writelines(self, datas):
-    self.sys_stream.writelines(datas)
-    self.sys_stream.flush()
+  def stream(self, data, **attrs):
+    self.redis.xadd(self.stream_key, msg=data, **attrs)
 
-  def __getattr__(self, attr):
-    return getattr(self.sys_stream, attr)
+  def stream_info(self, data):
+    self.stream_with_level(data, 'info')
 
+  def stream_error(self, data):
+    self.stream_with_level(data, 'error')
 
-def new_redis(address='', password=None):
-  # Split address into host/post
-  host, port = address.rsplit(':', 1)
+  def stream_with_level(self, data, level):
+    if data == '\n':
+      return
 
-  # Assign new StrictRedis instance to global redis var.
-  return StrictRedis(host=host, port=int(port), password=password)
+    attrs = self.stream_attrs
+    attrs['level'] = level
+
+    self.stream(data, **attrs)

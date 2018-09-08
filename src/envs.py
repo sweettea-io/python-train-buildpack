@@ -14,15 +14,18 @@ class EnvVars(object):
     'REDIS_PASSWORD'
   )
 
-  def __init__(self):
+  def __init__(self, prefix=''):
+    self.prefix = prefix
     self.set_envs()
 
   def set_envs(self):
     for env in self.required_envs:
+      key = self.prefix + env
+
       # Ensure env var exists.
-      if env not in os.environ:
-        print('{} must be provided as an environment variable in order to run this buildpack.'.format(env))
+      if key not in os.environ:
+        print('{} must be provided as an environment variable in order to run this buildpack.'.format(key))
         exit(1)
 
       # Make env var accessible as an attribute.
-      setattr(self, env, os.environ[env])
+      setattr(self, env, os.environ[key])

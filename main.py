@@ -3,28 +3,31 @@ import os
 import sys
 
 
-def ensure_internal_modules_accessible():
-  if not os.environ.get('PROJECT_UID'):
-    print('PROJECT_UID must be provided as an environment variable in order to run this buildpack.')
+def get_internal_modules(env_prefix):
+  # Construct key for project uid env var.
+  project_uid_key = '{}PROJECT_UID'.format(env_prefix)
+  project_uid = os.environ.get(project_uid_key)
+
+  if not project_uid:
+    print('{} must be provided as an environment variable in order to run this buildpack.'.format(project_uid_key))
     exit(1)
 
-
-def get_internal_modules():
   try:
-    config = get_src_mod('config')
-    definitions = get_src_mod('definitions')
-    envs = get_src_mod('envs')
-    model_uploader = get_src_mod('model_uploader')
-    pyredis = get_src_mod('pyredis')
+    config = get_src_mod(project_uid, 'config')
+    definitions = get_src_mod(project_uid, 'definitions')
+    envs = get_src_mod(project_uid, 'envs')
+    logger = get_src_mod(project_uid, 'logger')
+    model_uploader = get_src_mod(project_uid, 'model_uploader')
+    pyredis = get_src_mod(project_uid, 'pyredis')
 
-    return config, definitions, envs, model_uploader, pyredis
+    return config, definitions, envs, logger, model_uploader, pyredis
   except BaseException as e:
     print('Internal module reference failed: {}'.format(e))
     exit(1)
 
 
-def get_src_mod(name):
-  return importlib.import_module('{}.{}'.format(os.environ.get('PROJECT_UID'), name))
+def get_src_mod(parent_mod, name):
+  return importlib.import_module('{}.{}'.format(parent_mod, name))
 
 
 def get_validated_config(config_module, path):
@@ -65,26 +68,10 @@ def get_config_func(func_path):
   return getattr(mod, func_name)
 
 
-def call_config_func(action=None, func_path=None, redis=None, stream_capture=None, log_stream_key=None):
-  # Get reference to function from path.
-  func = get_config_func(func_path)
-
-  # Store reference to old stdout and stderr.
-  old_stdout = sys.stdout
-  old_stderr = sys.stderr
-
-  # Set up streaming of stdout and stderr to a redis stream.
-  sys.stdout = stream_capture(sys.stdout, redis, stream_key=log_stream_key, action=action, level='info')
-  sys.stderr = stream_capture(sys.stderr, redis, stream_key=log_stream_key, action=action, level='error')
-
-  # Execute the config function.
-  result = func()
-
-  # Revert changes to stdout and stderr
-  sys.stdout = old_stdout
-  sys.stderr = old_stderr
-
-  return result
+def call_action_func(func_path, redis, action=''):
+  if not func_path: return
+  redis.set_stream_attr('action', action)
+  return get_config_func(func_path)()
 
 
 def perform():
@@ -98,63 +85,48 @@ def perform():
     5. Evaluate model against custom criteria (if specified)
     6. Upload model to cloud storage
   """
+  # Get internal environment variable prefix.
+  env_prefix = os.environ.get('SWEET_TEA_INTERNAL_ENV_PREFIX', '')
+
   # Get reference to internal src modules.
-  config, definitions, envs, model_uploader, pyredis = get_internal_modules()
+  config, definitions, envs, logger, model_uploader, pyredis = get_internal_modules(env_prefix)
 
   # Create EnvVars instance from environment variables.
-  env_vars = envs.EnvVars()
+  env_vars = envs.EnvVars(prefix=env_prefix)
 
-  # Create Redis instance for log streaming.
-  redis = pyredis.new_redis(address=env_vars.REDIS_ADDRESS,
-                            password=env_vars.REDIS_PASSWORD)
+  # Create Redis stream client for log streaming.
+  redis = pyredis.RedisStreamClient(address=env_vars.REDIS_ADDRESS,
+                                    password=env_vars.REDIS_PASSWORD,
+                                    stream_key=env_vars.LOG_STREAM_KEY,
+                                    action='setup')
+
+  # Create custom log streams connected to Redis.
+  sys.stdout = logger.Logger(sys.stdout, on_write=redis.stream_info)
+  sys.stderr = logger.Logger(sys.stderr, on_write=redis.stream_error)
 
   # Create Config instance from SweetTea config file.
   cfg = get_validated_config(config, definitions.config_path)
 
-  # Create dict of generic kwargs for each config function call.
-  func_agnostic_kwargs = {
-    'redis': redis,
-    'stream_capture': pyredis.RedisStream,
-    'log_stream_key': env_vars.LOG_STREAM_KEY
-  }
+  # Perform main actions.
+  call_action_func(cfg.dataset_fetch_func(), redis, action='fetch_dataset')
+  call_action_func(cfg.dataset_prepro_func(), redis, action='preprocess dataset')
+  call_action_func(cfg.train_func(), redis, action='train')
+  call_action_func(cfg.test_func(), redis, action='test')
+  eval_result = call_action_func(cfg.eval_func(), redis, action='eval')
 
-  # Get function paths from config.
-  fetch_dataset = cfg.dataset_fetch_func()
-  prepro_dataset = cfg.dataset_prepro_func()
-  train_model = cfg.train_func()
-  test_model = cfg.test_func()
-  eval_model = cfg.eval_func()
-
-  # Fetch dataset (if configured to do so).
-  if fetch_dataset:
-    call_config_func(action='fetch dataset', func_path=fetch_dataset, **func_agnostic_kwargs)
-
-  # Preprocess dataset (if configured to do so).
-  if prepro_dataset:
-    call_config_func(action='preprocess dataset', func_path=prepro_dataset, **func_agnostic_kwargs)
-
-  # Train model.
-  call_config_func(action='train', func_path=train_model, **func_agnostic_kwargs)
-
-  # Test model (if configured to do so).
-  if test_model:
-    call_config_func(action='test', func_path=test_model, **func_agnostic_kwargs)
-
-  # Evaluate model against custom criteria (if configured to do so).
-  if eval_model:
-    passed_eval = call_config_func(action='eval', func_path=eval_model, **func_agnostic_kwargs)
-
-    # Exit if evaluation failed and that's the criteria used to determine if model should be uploaded.
-    if not passed_eval and cfg.eval_determines_model_upload():
-      print('Model did not pass evalution. Not uploading model.')
-      exit(1)
+  # Exit if evaluation failed and that's the criteria used to determine if model should be uploaded.
+  if not eval_result and cfg.eval_determines_model_upload():
+    print('Model did not pass evalution. Not uploading model.')
+    exit(1)
 
   # Upload model to cloud storage.
   model_uploader.upload(cloud_storage_url=env_vars.MODEL_STORAGE_URL,
                         rel_local_model_path=cfg.model_path(),
-                        cloud_model_path=env_vars.MODEL_STORAGE_FILE_PATH)
+                        cloud_model_path=env_vars.MODEL_STORAGE_FILE_PATH,
+                        region_name=env_vars.AWS_REGION_NAME,
+                        aws_access_key_id=env_vars.AWS_ACCESS_KEY_ID,
+                        aws_secret_access_key=env_vars.AWS_SECRET_ACCESS_KEY)
 
 
 if __name__ == '__main__':
-  ensure_internal_modules_accessible()
   perform()
