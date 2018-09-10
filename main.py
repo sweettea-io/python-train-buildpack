@@ -108,7 +108,7 @@ def perform():
   cfg = get_validated_config(config, definitions.config_path)
 
   # Perform main actions.
-  call_action_func(cfg.dataset_fetch_func(), redis, action='fetch_dataset')
+  call_action_func(cfg.dataset_fetch_func(), redis, action='fetch dataset')
   call_action_func(cfg.dataset_prepro_func(), redis, action='preprocess dataset')
   call_action_func(cfg.train_func(), redis, action='train')
   call_action_func(cfg.test_func(), redis, action='test')
@@ -118,6 +118,8 @@ def perform():
   if not eval_result and cfg.eval_determines_model_upload():
     print('Model did not pass evalution. Not uploading model.')
     return
+
+  redis.set_stream_attr('action', 'upload model')
 
   # Upload model to cloud storage.
   model_uploader.upload(cloud_storage_url=env_vars.MODEL_STORAGE_URL,
