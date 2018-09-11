@@ -69,7 +69,9 @@ def get_config_func(func_path):
 
 
 def call_action_func(func_path, redis, action=''):
-  if not func_path: return
+  if not func_path:
+    return
+
   redis.set_stream_attr('action', action)
   return get_config_func(func_path)()
 
@@ -101,8 +103,8 @@ def perform():
                                     action='setup')
 
   # Create custom log streams connected to Redis.
-  sys.stdout = logger.Logger(sys.stdout, on_write=redis.stream)
-  sys.stderr = logger.Logger(sys.stderr, on_write=redis.stream)
+  sys.stdout = logger.Logger(sys.stdout, on_write=redis.stream_info)
+  sys.stderr = logger.Logger(sys.stderr, on_write=redis.stream_error)
 
   # Create Config instance from SweetTea config file.
   cfg = get_validated_config(config, definitions.config_path)
@@ -114,9 +116,9 @@ def perform():
   call_action_func(cfg.test_func(), redis, action='test')
   eval_result = call_action_func(cfg.eval_func(), redis, action='eval')
 
-  # Exit if evaluation failed and that's the criteria used to determine if model should be uploaded.
+  # Return early if evaluation failed and that's the criteria used to determine if the model should be uploaded.
   if not eval_result and cfg.eval_determines_model_upload():
-    print('Model did not pass evalution. Not uploading model.')
+    sys.stderr.write('Model did not pass evalution. Not uploading model.')
     return
 
   redis.set_stream_attr('action', 'upload model')
